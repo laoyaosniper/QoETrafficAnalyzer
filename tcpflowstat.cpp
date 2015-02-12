@@ -14,6 +14,9 @@ void TCPFlowStat::clearData(){
     cltretxbytes=0; svrretxbytes=0;
     cltretxnum=0; svrretxnum=0;
     lastpacketarrivaltime=-1;
+
+    interPacketArrivalTimeList.clear();
+    //payloadSizeList.clear();
 }
 
 
@@ -83,8 +86,13 @@ void TCPFlowStat::addPacket(string ip_src, string ip_dst, int ippayloadlen, stru
     if (lastpacketarrivaltime!=-1){
         double iat=ts-lastpacketarrivaltime;
         avepacketinterarrivaltime=(avepacketinterarrivaltime*(pktcnt-2)+iat)/(pktcnt-1);
+        // More network metrics
+        interPacketArrivalTimeList.push_back(iat);
     }
     lastpacketarrivaltime=ts;
+
+    // save payload size
+    payloadSizeList.push_back(tcpdatalen);
 
     switch (tcpconnstate){
         case TCPCONSTATE_CLOSED: {

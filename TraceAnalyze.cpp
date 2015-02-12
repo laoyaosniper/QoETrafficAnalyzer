@@ -99,6 +99,9 @@ void TraceAnalyze::printTitle(ofstream &output){
           <<",\"TCP Server IP Address\""\
           <<",\"TCP Server TCP Port\""\
           <<",\"TCP Server Possible DNS Names\""\
+          <<",\"TCP Segment count\""\
+          <<",\"TCP Flow Average Packet Inter-Arrival Time Sequence\"" \
+          <<",\"TCP Flow Packet Size Sequence\"" \
           <<",\"TCP Flow Average Packet Inter-Arrival Time\"" \
           <<",\"TCP Flow Connection Setup Time (s)\""\
           <<",\"TCP Flow # of Retransmissions from Device to Server\""\
@@ -183,6 +186,29 @@ int TraceAnalyze::printLine(ofstream &output,int i){
         }
         for (int tt=0;tt<outputvec.size();tt++){
             output<<outputvec[tt]<<";";
+        }
+
+        output<<","<<tcpflows[i].pktcnt;
+        // More network metrics
+        // Interpacket arrival time
+        vector<double>& ipatList = tcpflows[i].interPacketArrivalTimeList;
+        sort(ipatList.begin(), ipatList.end());
+        output<<",";
+        for (vector<double>::const_iterator it = ipatList.begin(); it != ipatList.end(); it++) {
+            if (it != ipatList.begin()) {
+                output << "|";
+            }
+            output << *it;
+        }
+        // Payload size
+        vector<int>& sizeList = tcpflows[i].payloadSizeList;
+        sort(sizeList.begin(), sizeList.end());
+        output<<",";
+        for (vector<int>::const_iterator it = sizeList.begin(); it != sizeList.end(); it++) {
+            if (it != sizeList.begin()) {
+                output << "|";
+            }
+            output << *it;
         }
 
         output<<","<<tcpflows[i].avepacketinterarrivaltime;

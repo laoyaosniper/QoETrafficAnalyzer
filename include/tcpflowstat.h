@@ -52,6 +52,10 @@ public:
     double avepacketinterarrivaltime;
     double lastpacketarrivaltime;
 
+    // More network metrics
+    vector<double> interPacketArrivalTimeList;
+    vector<int> payloadSizeList;
+
     TCPFlowStat();
     void clearData();
     void swapcltsvr();
