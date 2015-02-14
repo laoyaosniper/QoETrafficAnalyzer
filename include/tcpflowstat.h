@@ -28,6 +28,15 @@
 #define FLOWINITBYSVR 1
 
 class TCPFlowStat {
+private:
+    deque< pair<int,double> > unackedSegs;
+    double clientInitTime;
+    double serverInitTime;
+    void calcUplinkThrpt(double ts);
+    void calcDownlinkThrpt(double ts);
+    void updateRTT(double ts);
+    int cltWndShift;
+    int svrWndShift;
 public:
     string cltip;
     string svrip;
@@ -47,14 +56,41 @@ public:
 
     //metrics
     int pktcnt;
+    int clientcnt;
+    int servercnt;
+    int rttcnt;
     double tcpconnsetuptime;
     int cltretxbytes,svrretxbytes,cltretxnum,svrretxnum;
     double avepacketinterarrivaltime;
     double lastpacketarrivaltime;
+    double avgUplinkIAT;
+    double avgDownlinkIAT;
+    double lastUplinkPktArrivalTime;
+    double lastDownlinkPktArrivalTime;
 
     // More network metrics
-    vector<double> interPacketArrivalTimeList;
+    int totalPayloadSize;
+    int uplinkPayloadSize;
+    int downlinkPayloadSize;
+    int avgCltRWin;
+    int avgSvrRWin;
+    int avgCltCWin;
+    int avgSvrCWin;
+    double avgRTT;
+    double avgUplinkThrpt;
+    double avgDownlinkThrpt;
+    vector<double> uplinkIATList;
+    vector<double> downlinkIATList;
     vector<int> payloadSizeList;
+    vector<int> cltRWinList;
+    vector<int> svrRWinList;
+    vector<int> cltCWinList;
+    vector<int> svrCWinList;
+    vector<double> latencyList;
+    vector<int> cltBIFList;
+    vector<int> svrBIFList;
+    vector<double> uplinkThrptList;
+    vector<double> downlinkThrptList;
 
     TCPFlowStat();
     void clearData();

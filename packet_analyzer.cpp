@@ -376,10 +376,90 @@ void PacketAnalyzer::run() {
   //  if ((tstmp.compare("23-00-00")>=0 && tstmp.compare("24-00-00")<=0) || (tstmp.compare("00-00-00")>=0 && tstmp.compare("05-00-00")<0)){
 		pcap_loop(trace_file, 0, dispatcher_handler, (u_char*)this);
 		pcap_close(trace_file);
-        outputTraceAnalyze(datafolder,firsttime);
+        //outputTraceAnalyze(datafolder,firsttime);
   //	 }
 
         if (firsttime==1) firsttime=0;
+        mPcapTraces.push_back(mTraceAnalyze);
 		trace_count++;
 	}
+
+    // output
+    ofstream output;
+    map<string,string> targetIpSet;
+    //targetIpSet.insert(make_pair("tmo-p.t-mobile.com", "2607:fb90:c13e:fff8::1"));
+    //targetIpSet.insert(make_pair("es.t-mobile.com", "2607:7700:0:7::cfd3:2a4f"));
+    targetIpSet.insert(make_pair("tmobile-us.inq.com", "2607:7700:0:7::4ac9:1454"));
+    targetIpSet.insert(make_pair("videos.t-mobile.com","2607:7700:0:7::3f83:933b"));
+    //targetIpSet.insert(make_pair("maps.eng.t-mobile.com","2607:7700:0:7::425e:a96"));
+    targetIpSet.insert(make_pair("account.my.t-mobile.com","2607:7700:0:7::c0e6:42be"));
+    targetIpSet.insert(make_pair("metrics.t-mobile.com", "2607:7700:0:7::42eb:9371"));
+    output.open((outputFileFolder + "/networkmetrics.txt").c_str());
+    vector<string> metrics;
+    metrics.push_back("UplinkIAT");
+    metrics.push_back("DownlinkIAT");
+    metrics.push_back("UplinkPktSize");
+    metrics.push_back("DownlinkPktSize");
+    metrics.push_back("ClientReceiverWindowSize");
+    metrics.push_back("ServerReceiverWindowSize");
+    metrics.push_back("RTT");
+    metrics.push_back("UplinkThroughput");
+    metrics.push_back("DownlinkThroughput");
+
+    int i = 0;
+    for (map<string,string>::const_iterator dnsIp = targetIpSet.begin(); dnsIp != targetIpSet.end(); dnsIp++) {
+        for (vector<string>::const_iterator it = metrics.begin(); it != metrics.end(); it++) {
+            /*
+            if (i != 0 || it != metrics.begin()) {
+                output << "\t";
+            }
+            */
+            output << *it << "|" << dnsIp->first << "\t";
+        }
+        i++;
+    }
+    output << "\n";
+    /*
+    output << "IAT"
+        << "\t" << "uplinkPktSize"
+        << "\t" << "downlinkPktSize"
+        << "\t" << "ClientReceiverWindowSize"
+        << "\t" << "ServerReceiverWindowSize"
+        << "\t" << "RTT"
+        << "\t" << "UplinkThroughput"
+        << "\t" << "DownlinkThroughput"
+        << endl;
+    */
+    for (vector<TraceAnalyze>::const_iterator it = mPcapTraces.begin(); it != mPcapTraces.end(); it++) {
+        for (map<string,string>::const_iterator dnsIp = targetIpSet.begin(); dnsIp != targetIpSet.end(); dnsIp++) {
+            /*
+            if (it != mPcapTraces.begin()) {
+                output << "\t";
+            }
+            */
+            output << it->printUplinkIAT(dnsIp->second)
+                << "\t" << it->printDownlinkIAT(dnsIp->second)
+                << "\t" << it->printUplinkPktSize(dnsIp->second)
+                << "\t" << it->printDownlinkPktSize(dnsIp->second)
+                << "\t" << it->printAvgClientReceiverWindowSize(dnsIp->second)
+                << "\t" << it->printAvgServerReceiverWindowSize(dnsIp->second)
+                << "\t" << it->printAvgRTT(dnsIp->second)
+                << "\t" << it->printUplinkThroughput(dnsIp->second)
+                << "\t" << it->printDownlinkThroughput(dnsIp->second)
+                << "\t";
+        }
+        output << endl;
+        /*
+        output << it->printAvgIAT()
+            << "\t" << it->printUplinkPktSize()
+            << "\t" << it->printDownlinkPktSize()
+            << "\t" << it->printAvgClientReceiverWindowSize()
+            << "\t" << it->printAvgServerReceiverWindowSize()
+            << "\t" << it->printAvgRTT()
+            << "\t" << it->printUplinkThroughput()
+            << "\t" << it->printDownlinkThroughput()
+            << endl;
+        */
+    }
+    output.close();
 }

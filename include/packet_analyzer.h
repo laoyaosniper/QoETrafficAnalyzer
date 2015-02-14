@@ -19,6 +19,7 @@ private:
 	void configTraceList();
 public:
 	TraceAnalyze mTraceAnalyze;
+    vector<TraceAnalyze> mPcapTraces;
 	PacketAnalyzer();
 
     void init();

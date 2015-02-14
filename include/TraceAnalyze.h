@@ -19,16 +19,17 @@
 #include "rrcstate.h"
 
 class TraceAnalyze {
-private:
+public:
+//private:
     int pktcnt;
     vector<struct DNSQueryComb> dnsquery;
 
     double aveInterPacketArriveTime;
     double lastPacketArriveTime;
 
-public:
     int gt5pktcnt;
     RRCStateMachine rrcstate;
+    //deque<struct TCPFlowStat> tcpflows;
     deque<struct TCPFlowStat> tcpflows;
     vector<struct DNSQueryComb> ansdnsquery;
     vector<string> gt5state;
@@ -44,6 +45,28 @@ public:
     void bswapDNS(struct DNS_HEADER* dnshdr);
     void handleTCPFlow(string ip_src, string ip_dst, int ippayloadlen, struct tcphdr* tcphdr, double ts);
     void feedTracePacket(Context ctx, const struct pcap_pkthdr *header, const u_char *pkt_data);
+/*
+    double printAvgIAT() const;
+    int printAvgPktSize() const;
+    int printUplinkPktSize() const;
+    int printDownlinkPktSize() const;
+    int printAvgClientReceiverWindowSize() const;
+    int printAvgServerReceiverWindowSize() const;
+    double printAvgRTT() const;
+    double printUplinkThroughput() const;
+    double printDownlinkThroughput() const;
+*/
+    //double printAvgIAT(string ip = "") const;
+    double printUplinkIAT(string ip = "") const;
+    double printDownlinkIAT(string ip = "") const;
+    int printAvgPktSize(string ip = "") const;
+    int printUplinkPktSize(string ip = "") const;
+    int printDownlinkPktSize(string ip = "") const;
+    int printAvgClientReceiverWindowSize(string ip = "") const;
+    int printAvgServerReceiverWindowSize(string ip = "") const;
+    double printAvgRTT(string ip = "") const;
+    double printUplinkThroughput(string ip = "") const;
+    double printDownlinkThroughput(string ip = "") const;
 
 };
 
