@@ -403,8 +403,13 @@ void PacketAnalyzer::run() {
     metrics.push_back("ClientReceiverWindowSize");
     metrics.push_back("ServerReceiverWindowSize");
     metrics.push_back("RTT");
+    metrics.push_back("HTTPLatency");
     metrics.push_back("UplinkThroughput");
     metrics.push_back("DownlinkThroughput");
+    metrics.push_back("ClientRTONum");
+    metrics.push_back("ServerRTONum");
+    metrics.push_back("ClientBIF");
+    metrics.push_back("ServerBIF");
 
     int i = 0;
     for (map<string,string>::const_iterator dnsIp = targetIpSet.begin(); dnsIp != targetIpSet.end(); dnsIp++) {
@@ -430,22 +435,27 @@ void PacketAnalyzer::run() {
         << "\t" << "DownlinkThroughput"
         << endl;
     */
-    for (vector<TraceAnalyze>::const_iterator it = mPcapTraces.begin(); it != mPcapTraces.end(); it++) {
+    for (vector<TraceAnalyze>::iterator it = mPcapTraces.begin(); it != mPcapTraces.end(); it++) {
         for (map<string,string>::const_iterator dnsIp = targetIpSet.begin(); dnsIp != targetIpSet.end(); dnsIp++) {
             /*
             if (it != mPcapTraces.begin()) {
                 output << "\t";
             }
             */
-            output << it->printUplinkIAT(dnsIp->second)
-                << "\t" << it->printDownlinkIAT(dnsIp->second)
-                << "\t" << it->printUplinkPktSize(dnsIp->second)
-                << "\t" << it->printDownlinkPktSize(dnsIp->second)
-                << "\t" << it->printAvgClientReceiverWindowSize(dnsIp->second)
-                << "\t" << it->printAvgServerReceiverWindowSize(dnsIp->second)
-                << "\t" << it->printAvgRTT(dnsIp->second)
-                << "\t" << it->printUplinkThroughput(dnsIp->second)
-                << "\t" << it->printDownlinkThroughput(dnsIp->second)
+            output << it->printMedianUplinkIAT(dnsIp->second)
+                << "\t" << it->printMedianDownlinkIAT(dnsIp->second)
+                << "\t" << it->printMedianUplinkPktSize(dnsIp->second)
+                << "\t" << it->printMedianDownlinkPktSize(dnsIp->second)
+                << "\t" << it->printMedianClientReceiverWindowSize(dnsIp->second)
+                << "\t" << it->printMedianServerReceiverWindowSize(dnsIp->second)
+                << "\t" << it->printMedianRTT(dnsIp->second)
+                << "\t" << it->printMedianHTTPLatency(dnsIp->second)
+                << "\t" << it->printMedianUplinkThroughput(dnsIp->second)
+                << "\t" << it->printMedianDownlinkThroughput(dnsIp->second)
+                << "\t" << it->printAvgClientRTOEventNum(dnsIp->second)
+                << "\t" << it->printAvgServerRTOEventNum(dnsIp->second)
+                << "\t" << it->printMedianClientBIF(dnsIp->second)
+                << "\t" << it->printMedianServerBIF(dnsIp->second)
                 << "\t";
         }
         output << endl;

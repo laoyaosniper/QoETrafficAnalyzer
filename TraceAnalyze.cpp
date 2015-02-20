@@ -469,24 +469,24 @@ void TraceAnalyze::feedTracePacket(Context ctx, const struct pcap_pkthdr *header
   //  };
 }
 
-double TraceAnalyze::printUplinkIAT(string ip) const {
+double TraceAnalyze::printMedianUplinkIAT(string ip) {
         double sum = 0.0;
         int cnt = 0;
-        for (deque<TCPFlowStat>::const_iterator it = tcpflows.begin(); it != tcpflows.end(); it++) {
+        for (deque<TCPFlowStat>::iterator it = tcpflows.begin(); it != tcpflows.end(); it++) {
             if (it->svrip == ip || ip == "") {
-                sum += it->avgUplinkIAT;
+                sum += calcMedian(it->uplinkIATList);
                 cnt++;
             }
         }
         return cnt != 0 ? sum / cnt : 0;
 }
 
-double TraceAnalyze::printDownlinkIAT(string ip) const {
+double TraceAnalyze::printMedianDownlinkIAT(string ip) {
         double sum = 0.0;
         int cnt = 0;
-        for (deque<TCPFlowStat>::const_iterator it = tcpflows.begin(); it != tcpflows.end(); it++) {
+        for (deque<TCPFlowStat>::iterator it = tcpflows.begin(); it != tcpflows.end(); it++) {
             if (it->svrip == ip || ip == "") {
-                sum += it->avgDownlinkIAT;
+                sum += calcMedian(it->downlinkIATList);
                 cnt++;
             }
         }
@@ -512,84 +512,91 @@ int TraceAnalyze::printAvgPktSize(string ip) const {
 
 }
 
-int TraceAnalyze::printUplinkPktSize(string ip) const {
-        int sumPktSize = 0;
-        int sumPktNum = 0;
-        for (deque<TCPFlowStat>::const_iterator it = tcpflows.begin(); it != tcpflows.end(); it++) {
+int TraceAnalyze::printMedianUplinkPktSize(string ip) {
+        double sumPktSize = 0;
+        int cnt = 0;
+        for (deque<TCPFlowStat>::iterator it = tcpflows.begin(); it != tcpflows.end(); it++) {
             if (it->svrip == ip || ip == "") {
-                sumPktSize += it->uplinkPayloadSize;
-                sumPktNum += it->clientcnt;
+                sumPktSize += calcMedian(it->cltPayloadSizeList);
+                cnt++;
             }
         }
-        if (sumPktNum != 0) {
-            return sumPktSize / sumPktNum;
-        }
-        else {
-            return 0;
-        }
+        return cnt == 0 ? (int)(sumPktSize / cnt) : 0;
 
 }
 
-int TraceAnalyze::printDownlinkPktSize(string ip) const {
-        int sumPktSize = 0;
-        int sumPktNum = 0;
-        for (deque<TCPFlowStat>::const_iterator it = tcpflows.begin(); it != tcpflows.end(); it++) {
+int TraceAnalyze::printMedianDownlinkPktSize(string ip) {
+        double sumPktSize = 0;
+        int cnt = 0;
+        for (deque<TCPFlowStat>::iterator it = tcpflows.begin(); it != tcpflows.end(); it++) {
             if (it->svrip == ip || ip == "") {
-                sumPktSize += it->downlinkPayloadSize;
-                sumPktNum += it->servercnt;
+                sumPktSize += calcMedian(it->svrPayloadSizeList);
+                cnt++;
             }
         }
-        if (sumPktNum != 0) {
-            return sumPktSize / sumPktNum;
-        }
-        else {
-            return 0;
-        }
+        return cnt == 0 ? (int)(sumPktSize / cnt) : 0;
 
 }
 
-int TraceAnalyze::printAvgClientReceiverWindowSize(string ip) const {
+int TraceAnalyze::printMedianClientReceiverWindowSize(string ip) {
     int sum = 0;
     int cnt = 0;
-    for (deque<TCPFlowStat>::const_iterator it = tcpflows.begin(); it != tcpflows.end(); it++) {
+    for (deque<TCPFlowStat>::iterator it = tcpflows.begin(); it != tcpflows.end(); it++) {
         if (it->svrip == ip || ip == "") {
-            sum += it->avgCltRWin;
+            sum += calcMedian(it->cltRWinList);
             cnt++;
         }
     }
     return cnt != 0 ? sum / cnt : 0;
 }
 
-int TraceAnalyze::printAvgServerReceiverWindowSize(string ip) const {
+int TraceAnalyze::printMedianServerReceiverWindowSize(string ip) {
     int sum = 0;
     int cnt = 0;
-    for (deque<TCPFlowStat>::const_iterator it = tcpflows.begin(); it != tcpflows.end(); it++) {
+    for (deque<TCPFlowStat>::iterator it = tcpflows.begin(); it != tcpflows.end(); it++) {
         if (it->svrip == ip || ip == "") {
-            sum += it->avgSvrRWin;
+            sum += calcMedian(it->svrRWinList);
             cnt++;
         }
     }
     return cnt != 0 ? sum / cnt : 0;
 }
 
-double TraceAnalyze::printAvgRTT(string ip) const {
-    double sum = 0;
-    int cnt;
-    for (deque<TCPFlowStat>::const_iterator it = tcpflows.begin(); it != tcpflows.end(); it++) {
-        if (it->svrip == ip || ip == "") {
-            sum += it->avgRTT;
-            cnt++;
-        }
-    }
-    return cnt != 0 ? sum / cnt : 0;
-}
-
-double TraceAnalyze::printUplinkThroughput(string ip) const {
+double TraceAnalyze::printMedianRTT(string ip) {
     double sum = 0;
     int cnt = 0;
-    for (deque<TCPFlowStat>::const_iterator it = tcpflows.begin(); it != tcpflows.end(); it++) {
+    for (deque<TCPFlowStat>::iterator it = tcpflows.begin(); it != tcpflows.end(); it++) {
         if (it->svrip == ip || ip == "") {
-            sum += it->avgUplinkThrpt;
+            sum += calcMedian(it->latencyList);
+            cnt++;
+        }
+    }
+    return cnt != 0 ? sum / cnt : 0;
+}
+
+double TraceAnalyze::printMedianHTTPLatency(string ip) {
+    double sum = 0;
+    int cnt = 0;
+    for (deque<TCPFlowStat>::iterator it = tcpflows.begin(); it != tcpflows.end(); it++) {
+        if (it->svrip == ip || ip == "") {
+            sum += calcMedian(it->HTTPLatencyList);
+            cnt++;
+            /*
+            if (ip == "2607:7700:0:7::3f83:933b") {
+                cout << "Trace: " << sum << ", cnt: " << cnt << endl;
+            }
+            */
+        }
+    }
+    return cnt != 0 ? sum / cnt : 0;
+}
+
+double TraceAnalyze::printMedianUplinkThroughput(string ip) {
+    double sum = 0;
+    int cnt = 0;
+    for (deque<TCPFlowStat>::iterator it = tcpflows.begin(); it != tcpflows.end(); it++) {
+        if (it->svrip == ip || ip == "") {
+            sum += calcMedian(it->uplinkThrptList);
             cnt++;
             //cout << "IP: " << ip << " Port: " << it->cltport << " Cnt: " << cnt << " Uplink Thrpt:" << it->avgUplinkThrpt << endl;
         }
@@ -597,15 +604,66 @@ double TraceAnalyze::printUplinkThroughput(string ip) const {
     return cnt != 0 ? sum / cnt : 0;
 }
 
-double TraceAnalyze::printDownlinkThroughput(string ip) const {
+double TraceAnalyze::printMedianDownlinkThroughput(string ip) {
     double sum = 0;
     int cnt = 0;
-    for (deque<TCPFlowStat>::const_iterator it = tcpflows.begin(); it != tcpflows.end(); it++) {
+    for (deque<TCPFlowStat>::iterator it = tcpflows.begin(); it != tcpflows.end(); it++) {
         if (it->svrip == ip || ip == "") {
-            sum += it->avgDownlinkThrpt;
+            sum += calcMedian(it->downlinkThrptList);
             cnt++;
             //cout << "IP: " << ip << " Port: " << it->cltport << " Cnt: " << cnt << " Downlink Thrpt:" << it->avgDownlinkThrpt << endl;
         }
     }
     return cnt != 0 ? sum / cnt : 0;
 }
+
+double TraceAnalyze::printAvgClientRTOEventNum(string ip) const {
+    double sum = 0;
+    int cnt = 0;
+    for (deque<TCPFlowStat>::const_iterator it = tcpflows.begin(); it != tcpflows.end(); it++) {
+        if (it->svrip == ip || ip == "") {
+            sum += it->cltretxnum;
+            cnt++;
+        }
+    }
+    return cnt != 0 ? sum / cnt : 0;
+
+}
+
+double TraceAnalyze::printAvgServerRTOEventNum(string ip) const {
+    double sum = 0;
+    int cnt = 0;
+    for (deque<TCPFlowStat>::const_iterator it = tcpflows.begin(); it != tcpflows.end(); it++) {
+        if (it->svrip == ip || ip == "") {
+            sum += it->svrretxnum;
+            cnt++;
+        }
+    }
+    return cnt != 0 ? sum / cnt : 0;
+
+}
+
+int TraceAnalyze::printMedianClientBIF(string ip) {
+        double sum = 0.0;
+        int cnt = 0;
+        for (deque<TCPFlowStat>::iterator it = tcpflows.begin(); it != tcpflows.end(); it++) {
+            if (it->svrip == ip || ip == "") {
+                sum += calcMedian(it->cltBIFList);
+                cnt++;
+            }
+        }
+        return cnt != 0 ? (int)(sum / cnt) : 0;
+}
+
+int TraceAnalyze::printMedianServerBIF(string ip) {
+        double sum = 0.0;
+        int cnt = 0;
+        for (deque<TCPFlowStat>::iterator it = tcpflows.begin(); it != tcpflows.end(); it++) {
+            if (it->svrip == ip || ip == "") {
+                sum += calcMedian(it->svrBIFList);
+                cnt++;
+            }
+        }
+        return cnt != 0 ? (int)(sum / cnt) : 0;
+}
+

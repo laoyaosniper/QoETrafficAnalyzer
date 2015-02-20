@@ -45,29 +45,39 @@ public:
     void bswapDNS(struct DNS_HEADER* dnshdr);
     void handleTCPFlow(string ip_src, string ip_dst, int ippayloadlen, struct tcphdr* tcphdr, double ts);
     void feedTracePacket(Context ctx, const struct pcap_pkthdr *header, const u_char *pkt_data);
-/*
-    double printAvgIAT() const;
-    int printAvgPktSize() const;
-    int printUplinkPktSize() const;
-    int printDownlinkPktSize() const;
-    int printAvgClientReceiverWindowSize() const;
-    int printAvgServerReceiverWindowSize() const;
-    double printAvgRTT() const;
-    double printUplinkThroughput() const;
-    double printDownlinkThroughput() const;
-*/
-    //double printAvgIAT(string ip = "") const;
-    double printUplinkIAT(string ip = "") const;
-    double printDownlinkIAT(string ip = "") const;
-    int printAvgPktSize(string ip = "") const;
-    int printUplinkPktSize(string ip = "") const;
-    int printDownlinkPktSize(string ip = "") const;
-    int printAvgClientReceiverWindowSize(string ip = "") const;
-    int printAvgServerReceiverWindowSize(string ip = "") const;
-    double printAvgRTT(string ip = "") const;
-    double printUplinkThroughput(string ip = "") const;
-    double printDownlinkThroughput(string ip = "") const;
 
+    //double printAvgIAT(string ip = "") const;
+    double printMedianUplinkIAT(string ip = "");
+    double printMedianDownlinkIAT(string ip = "");
+    int printAvgPktSize(string ip = "") const;
+    int printMedianUplinkPktSize(string ip = "");
+    int printMedianDownlinkPktSize(string ip = "");
+    int printMedianClientReceiverWindowSize(string ip = "");
+    int printMedianServerReceiverWindowSize(string ip = "");
+    double printMedianRTT(string ip = "");
+    double printMedianHTTPLatency(string ip = "");
+    double printMedianUplinkThroughput(string ip = "");
+    double printMedianDownlinkThroughput(string ip = "");
+    double printAvgClientRTOEventNum(string ip = "") const;
+    double printAvgServerRTOEventNum(string ip = "") const;
+    int printMedianClientBIF(string ip = "");
+    int printMedianServerBIF(string ip = "");
+
+    template<typename T>
+    T calcMedian(vector<T>& list) {
+        sort(list.begin(), list.end());
+        int len = list.size();
+        T median = 0;
+        if (len > 0) {
+            if (len % 2 == 1) {
+                median = list[len/2];
+            }
+            else {
+                median = (list[len/2] + list[len/2-1]) / 2;
+            }
+        }
+        return median;
+    }
 };
 
 #endif /* _TRACEANALYZE_H */

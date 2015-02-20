@@ -13,10 +13,6 @@ void TCPFlowStat::clearData(){
     servercnt=0;
     rttcnt=0;
     totalPayloadSize = 0;
-    uplinkPayloadSize = 0;
-    downlinkPayloadSize = 0;
-    avgCltRWin = 0;
-    avgSvrRWin = 0;
     avgRTT=0.0;
     clientInitTime = 0.0;
     serverInitTime = 0.0;
@@ -28,13 +24,23 @@ void TCPFlowStat::clearData(){
     tcpconnsetuptime=0;
     cltretxbytes=0; svrretxbytes=0;
     cltretxnum=0; svrretxnum=0;
-    avgUplinkIAT=0.0;
-    avgDownlinkIAT = 0.0;
     avepacketinterarrivaltime=0.0;
     lastpacketarrivaltime=-1.0;
     lastUplinkPktArrivalTime=-1.0;
     lastDownlinkPktArrivalTime=-1.0;
 
+    startCltAckTs = -1.0;
+    startCltAckSeq = -1;
+    endCltAckTs = -1.0;
+    endCltAckSeq = -1;
+
+    startSvrAckTs = -1.0;
+    startSvrAckSeq = -1;
+    endSvrAckTs = -1.0;
+    endSvrAckSeq = -1;
+
+    httpRequestSeq = 0;
+    httpResponseSeq = 0;
     //payloadSizeList.clear();
 }
 
@@ -118,34 +124,25 @@ void TCPFlowStat::addPacket(string ip_src, string ip_dst, int ippayloadlen, stru
         servercnt++;
         if (lastDownlinkPktArrivalTime > 0) {
             double iat = ts - lastDownlinkPktArrivalTime;
-            avgDownlinkIAT = (avgDownlinkIAT*(servercnt-2)+iat)/(servercnt-1);
             downlinkIATList.push_back(iat);
         }
         lastDownlinkPktArrivalTime = ts;
         // window scaling is considered
         int wnd = (int)tcphdr->window << svrWndShift;
-        /*
-        if (cltport == 60626) {
-            cout << "Port: " << cltport << ", Win: " << tcphdr->window << ", Scale: " << svrWndShift << ", CalcWin: " << wnd << endl;
-        }
-        */
         svrRWinList.push_back(wnd);
-        avgSvrRWin = (avgSvrRWin*(servercnt-1)+wnd)/servercnt;
-        downlinkPayloadSize += tcpdatalen;
+        svrPayloadSizeList.push_back(tcpdatalen);
     }
     else {
         clientcnt++;
         if (lastUplinkPktArrivalTime > 0) {
             double iat = ts - lastUplinkPktArrivalTime;
-            avgUplinkIAT = (avgUplinkIAT*(clientcnt-2)+iat)/(clientcnt-1);
             uplinkIATList.push_back(iat);
         }
         lastUplinkPktArrivalTime = ts;
         // window scaling is considered
         int wnd = (int)tcphdr->window << cltWndShift;
         cltRWinList.push_back(wnd);
-        avgCltRWin = (avgCltRWin*(clientcnt-1)+wnd)/clientcnt;
-        uplinkPayloadSize += tcpdatalen;
+        cltPayloadSizeList.push_back(tcpdatalen);
     }
 
     if (tcphdr->doff > 5) {
@@ -184,7 +181,6 @@ void TCPFlowStat::addPacket(string ip_src, string ip_dst, int ippayloadlen, stru
                 svrport=tcphdr->dest;
                 cltseq=tcphdr->seq;
                 svrackseq=tcphdr->seq+1; cltinitseq=tcphdr->seq+1;
-                // for uplink throughput
                 clientInitTime = ts;
 
                 flowinitby=FLOWINITBYCLT;
@@ -202,8 +198,9 @@ void TCPFlowStat::addPacket(string ip_src, string ip_dst, int ippayloadlen, stru
                 syntosynacktime=synacktime-syntime;
                 svrseq=tcphdr->seq;
                 cltackseq=tcphdr->seq+1; svrinitseq=tcphdr->seq+1;
-                // for downlink throughput
                 serverInitTime = ts;
+                // for uplink throughput
+                calcUplinkThrpt(ts);
 
                 cltseq=tcphdr->ack_seq;
 
@@ -215,8 +212,9 @@ void TCPFlowStat::addPacket(string ip_src, string ip_dst, int ippayloadlen, stru
                 simulsyn=1;
                 svrseq=tcphdr->seq;
                 cltackseq=tcphdr->seq+1; svrinitseq=tcphdr->seq+1;
-                // for downlink throughput
                 serverInitTime = ts;
+                // for uplink throughput
+                calcUplinkThrpt(ts);
 
                 tcpconnstate=TCPCONSTATE_SYN_RECEIVED;
                 printStat();
@@ -243,29 +241,16 @@ void TCPFlowStat::addPacket(string ip_src, string ip_dst, int ippayloadlen, stru
                 if (pktdir==PKTSENDER_CLT){
                     cltseq=tcphdr->seq+tcpdatalen;
                     cltackseq=tcphdr->ack_seq;
+                    // for downlink throughput
+                    calcDownlinkThrpt(ts);
+
                     svrseq=tcphdr->ack_seq;
-                    // update bytes-in-flight
                     unackedSegs.push_back(make_pair(cltseq, ts));
-                    /*
-                    int bif = cltseq - svrackseq + 1;
-                    if (!cltBIFList.empty()) {
-                        int prevBIF = cltBIFList.back();
-                        if (prevBIF+1 == 
-                    cltBIFList.push_back(bif);
-                    avgCltCWin = (avgCltCWin*(clientcnt-1)+bif) / clientcnt;
-                    */
                 }
                 if (pktdir==PKTSENDER_SVR){
                     svrseq=tcphdr->seq+tcpdatalen;
                     svrackseq=tcphdr->ack_seq;
                     cltseq=tcphdr->ack_seq;
-                    // update bytes-in-flight
-                    unackedSegs.push_back(make_pair(svrseq, ts));
-                    /*
-                    int bif = svrseq - cltackseq + 1;
-                    svrBIFList.push_back(bif);
-                    avgSvrCWin = (avgCltCWin*(servercnt-1)+bif) / servercnt;
-                    */
                 }
                 printStat();
 
@@ -308,8 +293,20 @@ void TCPFlowStat::addPacket(string ip_src, string ip_dst, int ippayloadlen, stru
                     if (tcphdr->seq > cltseq){
                         printf("client seq is greater than expected, may be pcap's fault.\n");
                     }
-
+/*
                     if (tcphdr->seq < cltseq){
+                    //has re-transmission
+                        int retxb=cltseq-tcphdr->seq;
+                        if (tcpdatalen<retxb)
+                          retxb=tcpdatalen;
+
+                        cltretxbytes+=retxb;
+                        cltretxnum+=1;
+                  //      printf("client retx %d bytes.\n", retxb);
+                    };
+*/
+                    //if (tcphdr->seq < cltseq) {
+                    if (tcphdr->seq < cltseq && tcpdatalen > 0){
                     //has re-transmission
                         int retxb=cltseq-tcphdr->seq;
                         if (tcpdatalen<retxb)
@@ -324,6 +321,15 @@ void TCPFlowStat::addPacket(string ip_src, string ip_dst, int ippayloadlen, stru
                     if (tcphdr->seq+tcpdatalen > cltseq) {
                         cltseq=tcphdr->seq+tcpdatalen;
                         unackedSegs.push_back(make_pair(cltseq,ts));
+                        if (svrport == 80 || svrport == 8080) {
+                            char* pHTTPRequest =  (char*)tcphdr + tcphdr->doff*4;
+                            if (pHTTPRequest[0] == 'G' && pHTTPRequest[1] == 'E' && pHTTPRequest[2] == 'T') {
+                                httpRequestSeq++;
+                                unackedHTTPSegs.push_back(make_pair(httpRequestSeq, ts));
+                            }
+                        }
+                        int bif = cltseq - svrackseq;
+                        cltBIFList.push_back(bif);
                     }
 
                     if (tcphdr->ack_seq >= cltackseq) {
@@ -331,8 +337,6 @@ void TCPFlowStat::addPacket(string ip_src, string ip_dst, int ippayloadlen, stru
                         // downlink throughput
                         calcDownlinkThrpt(ts);
                     };
-                    int bif = cltseq - svrackseq;
-                    cltBIFList.push_back(bif);
                     printStat();
                 };
 
@@ -341,7 +345,7 @@ void TCPFlowStat::addPacket(string ip_src, string ip_dst, int ippayloadlen, stru
                     if (tcphdr->seq > svrseq){
                  //       printf("svr seq is greater than expected, some server data are delayed or lost.\n");
                     }
-
+/*
                     if (tcphdr->seq < svrseq) {
                         int retxb=svrseq-tcphdr->seq;
                         if (tcpdatalen<retxb)
@@ -351,11 +355,31 @@ void TCPFlowStat::addPacket(string ip_src, string ip_dst, int ippayloadlen, stru
                         svrretxnum+=1;
                    //     printf("server retx %d bytes.\n", retxb);
                     };
+*/
+                    if (tcphdr->seq < svrseq && tcpdatalen > 0) {
+                        int retxb=svrseq-tcphdr->seq;
+                        if (tcpdatalen<retxb)
+                          retxb=tcpdatalen;
+
+                        svrretxbytes+=retxb;
+                        svrretxnum+=1;
+                   //     printf("server retx %d bytes.\n", retxb);
+                    };
+
 
                     //the last thing: update seq
 
                     if (tcphdr->seq+tcpdatalen > svrseq) {
                         svrseq=tcphdr->seq+tcpdatalen;
+                        if (svrport == 80 || svrport == 8080) {
+                            char* pHTTPRequest =  (char*)tcphdr + tcphdr->doff*4;
+                            if (pHTTPRequest[0] == 'H' && pHTTPRequest[1] == 'T' && pHTTPRequest[2] == 'T' && pHTTPRequest[3] == 'P') {
+                                httpResponseSeq++;
+                                updateHTTPLatency(ts);
+                            }
+                        }
+                        int bif = svrseq - cltackseq;
+                        svrBIFList.push_back(bif);
                     }
 
 
@@ -365,8 +389,6 @@ void TCPFlowStat::addPacket(string ip_src, string ip_dst, int ippayloadlen, stru
                         // rtt
                         updateRTT(ts);
                     };
-                    int bif = svrseq - cltackseq;
-                    svrBIFList.push_back(bif);
                     printStat();
 
                 }
@@ -379,6 +401,7 @@ void TCPFlowStat::addPacket(string ip_src, string ip_dst, int ippayloadlen, stru
         case TCPCONSTATE_FIN:
                 if (pktdir==PKTSENDER_CLT){
                     //calc metrics first
+                    /*
                     if (tcphdr->seq < cltseq){
                     //has re-transmission
                         int retxb=cltseq-tcphdr->seq;
@@ -389,24 +412,26 @@ void TCPFlowStat::addPacket(string ip_src, string ip_dst, int ippayloadlen, stru
                         cltretxnum+=1;
                   //      printf("client retx %d bytes.\n", retxb);
                     };
+                    */
 
                     //the last thing: update seq
                     if (tcphdr->seq+tcpdatalen > cltseq) {
                         cltseq=tcphdr->seq+tcpdatalen;
                         unackedSegs.push_back(make_pair(cltseq,ts));
+                        int bif = cltseq - svrackseq;
+                        cltBIFList.push_back(bif);
                     }
 
                     if (tcphdr->ack_seq >= cltackseq) {
                         cltackseq=tcphdr->ack_seq;
                         // downlink throughput
-                        calcDownlinkThrpt(ts);
+                        //calcDownlinkThrpt(ts);
                     };
-                    int bif = cltseq - svrackseq;
-                    cltBIFList.push_back(bif);
                     printStat();
                 };
 
                 if (pktdir==PKTSENDER_SVR){
+                    /*
                     if (tcphdr->seq < svrseq) {
                         int retxb=svrseq-tcphdr->seq;
                         if (tcpdatalen<retxb)
@@ -416,22 +441,23 @@ void TCPFlowStat::addPacket(string ip_src, string ip_dst, int ippayloadlen, stru
                         svrretxnum+=1;
                    //     printf("server retx %d bytes.\n", retxb);
                     };
+                    */
 
                     //the last thing: update seq
 
                     if (tcphdr->seq+tcpdatalen > svrseq) {
                         svrseq=tcphdr->seq+tcpdatalen;
+                        int bif = svrseq - cltackseq;
+                        svrBIFList.push_back(bif);
                     }
 
 
                     if (tcphdr->ack_seq >= svrackseq) {
                         svrackseq=tcphdr->ack_seq;
-                        calcUplinkThrpt(ts);
+                        //calcUplinkThrpt(ts);
                         // rtt
                         updateRTT(ts);
                     };
-                    int bif = svrseq - cltackseq;
-                    svrBIFList.push_back(bif);
                     printStat();
 
                 }
@@ -446,10 +472,71 @@ void TCPFlowStat::addPacket(string ip_src, string ip_dst, int ippayloadlen, stru
 void TCPFlowStat::calcUplinkThrpt(double ts) {
     // uplink throughput, bps
     avgUplinkThrpt = 8 * (svrackseq - cltinitseq) / (ts - clientInitTime);
+    // more fine-grinded measurement
+    if (startSvrAckSeq == -1) {
+        startSvrAckSeq = svrackseq;
+        startSvrAckTs = ts;
+        endSvrAckSeq = svrackseq;
+        endSvrAckTs = ts;
+        uplinkThrptList.push_back(0.0);
+    }
+    //else if (svrackseq > startSvrAckSeq) {
+    else if (svrackseq > endSvrAckSeq) {
+        if (ts - startSvrAckTs > THRPT_SAMPLE_INTERVAL) {
+            uplinkThrptList.push_back(0.0);
+            startSvrAckSeq = endSvrAckSeq;
+            endSvrAckSeq = svrackseq;
+            startSvrAckTs = ts;
+        }
+        else {
+            endSvrAckSeq = svrackseq;
+            endSvrAckTs = ts;
+        }
+        double& thrpt = uplinkThrptList.back();
+        thrpt = 8 * (endSvrAckSeq - startSvrAckSeq) / THRPT_SAMPLE_INTERVAL;
+        /*
+        if (svrip == "2607:7700:0:7::42eb:9371") {
+            cout << startSvrAckSeq << " " << endSvrAckSeq << " " << thrpt << endl;
+            for (vector<double>::iterator it = uplinkThrptList.begin(); it != uplinkThrptList.end(); it++) {
+                cout << *it << " ";
+            }
+            cout << endl;
+        }
+        */
+    }
+
 }
 void TCPFlowStat::calcDownlinkThrpt(double ts) {
-    // downlink throughput, bps
+    // average downlink throughput, bps
     avgDownlinkThrpt = 8 * (cltackseq - svrinitseq) / (ts - serverInitTime);
+    // more fine-grinded measurement
+    if (startCltAckSeq == -1) {
+        startCltAckSeq = cltackseq;
+        startCltAckTs = ts;
+        endCltAckSeq = cltackseq;
+        endCltAckTs = ts;
+        downlinkThrptList.push_back(0.0);
+    }
+    //else if (cltackseq > startCltAckSeq) {
+    else if (cltackseq > endCltAckSeq) {
+        if (ts - startCltAckTs > THRPT_SAMPLE_INTERVAL) {
+            downlinkThrptList.push_back(0.0);
+            startCltAckSeq = endCltAckSeq;
+            endCltAckSeq = cltackseq;
+            startCltAckTs = ts;
+        }
+        else {
+            endCltAckSeq = cltackseq;
+            endCltAckTs = ts;
+        }
+        double& thrpt = downlinkThrptList.back();
+        thrpt = 8 * (endCltAckSeq - startCltAckSeq) / THRPT_SAMPLE_INTERVAL;
+        /*
+        if (thrpt < 0.00001 && thrpt > -0.00001) {
+            cout << startCltAckSeq << " " << endCltAckSeq << " " << startCltAckTs << endl;
+        }
+        */
+    }
 }
 
 void TCPFlowStat::updateRTT(double ts) {
@@ -471,6 +558,35 @@ void TCPFlowStat::updateRTT(double ts) {
         }
         else if (pr.first < svrackseq) {
             unackedSegs.pop_front();
+        }
+        else {
+            break;
+        }
+    }
+}
+
+void TCPFlowStat::updateHTTPLatency(double ts) {
+    while(!unackedHTTPSegs.empty()) {
+        pair<int,double>& pr = unackedHTTPSegs.front();
+        if(pr.first == httpResponseSeq) {
+            // found HTTP RTT sample
+            double rtt = ts - pr.second;
+            /*
+            if (svrip == "2607:7700:0:7::3f83:933b") {
+                cout << cltport << " " << rtt << endl;
+            }
+            */
+            /*
+            if (rtt > 0.1) {
+                cout << fixed << cltport << " " << pktcnt << " " << svrackseq-cltinitseq+1 << " " << ts << " " << pr.second << " " << ts - pr.second << endl;
+            }
+            */
+            HTTPLatencyList.push_back(rtt);
+            unackedHTTPSegs.pop_front();
+            break;
+        }
+        else if (pr.first < httpResponseSeq) {
+            unackedHTTPSegs.pop_front();
         }
         else {
             break;

@@ -29,12 +29,17 @@
 
 class TCPFlowStat {
 private:
+    const static double THRPT_SAMPLE_INTERVAL = 50 * 1.0/1000;
     deque< pair<int,double> > unackedSegs;
+    deque< pair<int,double> > unackedHTTPSegs;
     double clientInitTime;
     double serverInitTime;
     void calcUplinkThrpt(double ts);
     void calcDownlinkThrpt(double ts);
     void updateRTT(double ts);
+    int httpRequestSeq;
+    int httpResponseSeq;
+    void updateHTTPLatency(double ts);
     int cltWndShift;
     int svrWndShift;
 public:
@@ -63,33 +68,34 @@ public:
     int cltretxbytes,svrretxbytes,cltretxnum,svrretxnum;
     double avepacketinterarrivaltime;
     double lastpacketarrivaltime;
-    double avgUplinkIAT;
-    double avgDownlinkIAT;
     double lastUplinkPktArrivalTime;
     double lastDownlinkPktArrivalTime;
 
     // More network metrics
     int totalPayloadSize;
-    int uplinkPayloadSize;
-    int downlinkPayloadSize;
-    int avgCltRWin;
-    int avgSvrRWin;
-    int avgCltCWin;
-    int avgSvrCWin;
     double avgRTT;
     double avgUplinkThrpt;
     double avgDownlinkThrpt;
     vector<double> uplinkIATList;
     vector<double> downlinkIATList;
     vector<int> payloadSizeList;
+    vector<int> cltPayloadSizeList;
+    vector<int> svrPayloadSizeList;
     vector<int> cltRWinList;
     vector<int> svrRWinList;
-    vector<int> cltCWinList;
-    vector<int> svrCWinList;
     vector<double> latencyList;
+    vector<double> HTTPLatencyList;
     vector<int> cltBIFList;
     vector<int> svrBIFList;
+    double startSvrAckTs;
+    int startSvrAckSeq;
+    double endSvrAckTs;
+    int endSvrAckSeq;
     vector<double> uplinkThrptList;
+    double startCltAckTs;
+    int startCltAckSeq;
+    double endCltAckTs;
+    int endCltAckSeq;
     vector<double> downlinkThrptList;
 
     TCPFlowStat();
