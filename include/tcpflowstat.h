@@ -37,6 +37,7 @@ private:
     void calcUplinkThrpt(double ts);
     void calcDownlinkThrpt(double ts);
     void updateRTT(double ts);
+    void updateUnackedSeg(int seq, double ts);
     int httpRequestSeq;
     int httpResponseSeq;
     void updateHTTPLatency(double ts);
@@ -78,15 +79,27 @@ public:
     double avgDownlinkThrpt;
     vector<double> uplinkIATList;
     vector<double> downlinkIATList;
+    /*
     vector<int> payloadSizeList;
     vector<int> cltPayloadSizeList;
     vector<int> svrPayloadSizeList;
     vector<int> cltRWinList;
     vector<int> svrRWinList;
+    */
+    vector<double> payloadSizeList;
+    vector<double> cltPayloadSizeList;
+    vector<double> svrPayloadSizeList;
+    vector<double> cltRWinList;
+    vector<double> svrRWinList;
+
     vector<double> latencyList;
     vector<double> HTTPLatencyList;
+    /*
     vector<int> cltBIFList;
     vector<int> svrBIFList;
+    */
+    vector<double> cltBIFList;
+    vector<double> svrBIFList;
     double startSvrAckTs;
     int startSvrAckSeq;
     double endSvrAckTs;

@@ -313,6 +313,7 @@ string PacketAnalyzer::trimNameFormat(string fdr){
     return fdr.substr(0,pos+1);
 }
 
+
 void PacketAnalyzer::run() {
 	// read packet
 	char errbuf[PCAP_ERRBUF_SIZE];
@@ -393,7 +394,9 @@ void PacketAnalyzer::run() {
     targetIpSet.insert(make_pair("videos.t-mobile.com","2607:7700:0:7::3f83:933b"));
     //targetIpSet.insert(make_pair("maps.eng.t-mobile.com","2607:7700:0:7::425e:a96"));
     targetIpSet.insert(make_pair("account.my.t-mobile.com","2607:7700:0:7::c0e6:42be"));
-    targetIpSet.insert(make_pair("metrics.t-mobile.com", "2607:7700:0:7::42eb:9371"));
+    //targetIpSet.insert(make_pair("metrics.t-mobile.com", "2607:7700:0:7::42eb:9371"));
+    targetIpSet.insert(make_pair("betaua.my.t-mobile.com", "2607:7700:0:7::3270:a51d"));
+    //targetIpSet.insert(make_pair("www.t-mobile.com", "2a03:2880:f012:1:face:b00c:0:1"));
     output.open((outputFileFolder + "/networkmetrics.txt").c_str());
     vector<string> metrics;
     metrics.push_back("UplinkIAT");
@@ -411,37 +414,24 @@ void PacketAnalyzer::run() {
     metrics.push_back("ClientBIF");
     metrics.push_back("ServerBIF");
 
+
+    output.close();
+    for (vector<string>::const_iterator it = metrics.begin(); it != metrics.end(); it++) {
+        printCandleStickData(targetIpSet, *it);
+    }
+//    printSkypeInfo();
+/*
     int i = 0;
     for (map<string,string>::const_iterator dnsIp = targetIpSet.begin(); dnsIp != targetIpSet.end(); dnsIp++) {
         for (vector<string>::const_iterator it = metrics.begin(); it != metrics.end(); it++) {
-            /*
-            if (i != 0 || it != metrics.begin()) {
-                output << "\t";
-            }
-            */
-            output << *it << "|" << dnsIp->first << "\t";
+            //output << *it << "|" << dnsIp->first << "\t";
+            output << dnsIp->first << "|" << *it << "\t";
         }
         i++;
     }
     output << "\n";
-    /*
-    output << "IAT"
-        << "\t" << "uplinkPktSize"
-        << "\t" << "downlinkPktSize"
-        << "\t" << "ClientReceiverWindowSize"
-        << "\t" << "ServerReceiverWindowSize"
-        << "\t" << "RTT"
-        << "\t" << "UplinkThroughput"
-        << "\t" << "DownlinkThroughput"
-        << endl;
-    */
     for (vector<TraceAnalyze>::iterator it = mPcapTraces.begin(); it != mPcapTraces.end(); it++) {
         for (map<string,string>::const_iterator dnsIp = targetIpSet.begin(); dnsIp != targetIpSet.end(); dnsIp++) {
-            /*
-            if (it != mPcapTraces.begin()) {
-                output << "\t";
-            }
-            */
             output << it->printMedianUplinkIAT(dnsIp->second)
                 << "\t" << it->printMedianDownlinkIAT(dnsIp->second)
                 << "\t" << it->printMedianUplinkPktSize(dnsIp->second)
@@ -459,17 +449,192 @@ void PacketAnalyzer::run() {
                 << "\t";
         }
         output << endl;
-        /*
-        output << it->printAvgIAT()
-            << "\t" << it->printUplinkPktSize()
-            << "\t" << it->printDownlinkPktSize()
-            << "\t" << it->printAvgClientReceiverWindowSize()
-            << "\t" << it->printAvgServerReceiverWindowSize()
-            << "\t" << it->printAvgRTT()
-            << "\t" << it->printUplinkThroughput()
-            << "\t" << it->printDownlinkThroughput()
-            << endl;
-        */
+    }
+    output.close();
+*/
+
+    output.open((outputFileFolder + "/RTT_Time_Breakdown.txt").c_str());
+    pair<string, string> targetServer = make_pair("account.my.t-mobile.com","2607:7700:0:7::c0e6:42be");
+    int len = mTraceList.size();
+    for (int i = 0; i < len; i++) {
+        int namelen = mTraceList[i].length();
+        output << i+1 << "\t";
+        output << mTraceList[i].substr(namelen-8,8) << "\t";
+        TraceAnalyze ta = mPcapTraces[i];
+        output << ta.printAvgRTT(targetServer.second) << "\t";
+        output << ta.printRTT(0.05, targetServer.second) << "\t";
+        output << ta.printRTT(0.25, targetServer.second) << "\t";
+        output << ta.printRTT(0.5, targetServer.second) << "\t";
+        //output << ta.printMedianRTT(targetServer.second) << "\t";
+        output << ta.printRTT(0.75, targetServer.second) << "\t";
+        output << ta.printRTT(0.95, targetServer.second) << "\t";
+        output << endl;
     }
     output.close();
 }
+
+void PacketAnalyzer::printSkypeInfo() {
+    int idx = 0;
+    for (vector<TraceAnalyze>::iterator pPcap = mPcapTraces.begin(); pPcap != mPcapTraces.end(); pPcap++) {
+        idx++;
+        cerr << "******************************************" << endl;
+        cerr << "Pcap: " << idx << endl;
+        int flowNum = 0;
+        string cltip, svrip;
+        for (deque<UDPFlowStat>::const_iterator pFlow = pPcap->udpflows.begin(); pFlow != pPcap->udpflows.end(); pFlow++) {
+            flowNum++;
+            cerr << "Flow: " << flowNum << endl;
+            //const vector<double>& upList = pFlow->uplinkThrptList;
+            vector<double> upList = pFlow->uplinkThrptList;
+            for (int i = 0; i < upList.size(); i++) {
+                cout << upList[i] << " ";
+            }
+            cout << endl;
+            if (upList.size() >= 10) {
+                cltip = pFlow->cltip; svrip = pFlow->svrip;
+                double avgBitrate = average(upList);
+                double jitterBitrate = stdDev(upList);
+                cerr << "Clt IP: " << cltip << ", Svr IP: " << svrip << endl;
+                cerr << "Bitrate: " << avgBitrate << ", jitter: " << jitterBitrate << endl;
+            }
+        }
+        for (deque<TCPFlowStat>::const_iterator pFlow = pPcap->tcpflows.begin(); pFlow != pPcap->tcpflows.end(); pFlow++) {
+            if (pFlow->cltip == cltip || pFlow->svrip == cltip) {
+                cerr << "Clt IP: " << cltip << ", Svr IP: " << svrip << endl;
+                const vector<double>& rttList = pFlow->latencyList;
+                for (int i = 0; i < rttList.size(); i++) {
+                    cerr << rttList[i] << " ";
+                }
+                cerr << endl;
+            }
+        }
+        cout << "Finished!" << endl;
+    }
+}
+
+vector<double> getVector(const TCPFlowStat& flow, string metric) {
+    if (metric == "UplinkIAT") {
+        return flow.uplinkIATList;
+    } else
+    if (metric == "DownlinkIAT") {
+        return flow.downlinkIATList;
+    } else
+    if (metric == "UplinkPktSize") {
+        return flow.cltPayloadSizeList;
+    } else
+    if (metric == "DownlinkPktSize") {
+        return flow.svrPayloadSizeList;
+    } else
+    if (metric == "ClientReceiverWindowSize") {
+        return flow.cltRWinList;
+    } else
+    if (metric == "ServerReceiverWindowSize") {
+        return flow.svrRWinList;
+    } else
+    if (metric == "RTT") {
+        return flow.latencyList;
+    } else
+    if (metric == "HTTPLatency") {
+        return flow.HTTPLatencyList;
+    } else
+    if (metric == "UplinkThroughput") {
+        return flow.uplinkThrptList;
+    } else
+    if (metric == "DownlinkThroughput") {
+        return flow.downlinkThrptList;
+    } else
+    if (metric == "ClientRTONum") {
+        vector<double>* pRtoList = new vector<double>();
+        pRtoList->push_back(flow.cltretxnum);
+        return *pRtoList;
+    } else
+    if (metric == "ServerRTONum") {
+        vector<double>* pRtoList = new vector<double>();
+        pRtoList->push_back(flow.svrretxnum);
+        return *pRtoList;
+    } else
+    if (metric == "ClientBIF") {
+        return flow.cltBIFList;
+    } else
+    if (metric == "ServerBIF") {
+        return flow.svrBIFList;
+    } else {
+        cerr << "Metric " << metric << " not found!" << endl;
+        vector<double>* pTmp = new vector<double>();
+        return *pTmp;
+    }
+}
+
+void PacketAnalyzer::printCandleStickData(const map<string, string>& targetIpSet, string metric) {
+    ofstream output;
+    string outputFileName = (outputFileFolder + "/" + metric + ".txt");
+    cout << outputFileName << endl;
+    output.open(outputFileName.c_str());
+    int idx = 1;
+    for (map<string,string>::const_iterator dnsIp = targetIpSet.begin(); dnsIp != targetIpSet.end(); dnsIp++) {
+        output << idx++ << "\t" << dnsIp->first << "\t";
+        vector<double> list;
+        int sumLen = 0;
+        for (vector<TraceAnalyze>::iterator pPcap = mPcapTraces.begin(); pPcap != mPcapTraces.end(); pPcap++) {
+            if (metric == "RTT" || metric == "HTTPLatency") {
+                for (deque<TCPFlowStat>::const_iterator pFlow = pPcap->tcpflows.begin(); pFlow != pPcap->tcpflows.end(); pFlow++) {
+                    if (pFlow->svrip == dnsIp->second) {
+                        const vector<double>& valList = getVector(*pFlow, metric);
+                        if (valList.size() > 0) {
+                            sumLen += valList.size();
+                            list.reserve(sumLen);
+                            list.insert(list.end(), valList.begin(), valList.end());
+                        }
+                    }
+                }
+            }
+            else {
+                double sum = 0.0;
+                int cnt = 0;
+                for (deque<TCPFlowStat>::const_iterator pFlow = pPcap->tcpflows.begin(); pFlow != pPcap->tcpflows.end(); pFlow++) {
+                    if (pFlow->svrip == dnsIp->second) {
+                        vector<double> valList = getVector(*pFlow, metric);
+                        sum += TraceAnalyze::calcMedian(valList);
+                        cnt++;
+                    }
+                }
+                list.push_back(cnt != 0 ? sum / cnt : 0.0);
+            }
+        }
+        sort(list.begin(), list.end());
+        //if (metric == "ClientRTONum") {
+        
+        if (metric == "RTT") {
+            for (int i = 0; i < list.size(); i++) {
+                cout << list[i] << " ";
+            }
+            cout << endl;
+        }
+        
+        double avg = 0.0;
+        for (vector<double>::iterator pData = list.begin(); pData != list.end(); pData++) {
+            avg += *pData;
+        }
+        avg = list.size() != 0 ? avg / list.size() : 0;
+        if (list.size() != 0) {
+            output << avg << "\t"
+                << list[(int)(list.size()*0.05)] << "\t"
+                << list[(int)(list.size()*0.25)] << "\t"
+                << list[(int)(list.size()*0.5)] << "\t"
+                << list[(int)(list.size()*0.75)] << "\t"
+                << list[(int)(list.size()*0.95)] << "\t"
+                << endl;
+        }
+        else {
+            output << avg << "\t"
+                << 0 << "\t"
+                << 0 << "\t"
+                << 0 << "\t"
+                << 0 << "\t"
+                << 0 << "\t"
+                << endl;
+        }
+    }
+    output.close();
+}
+

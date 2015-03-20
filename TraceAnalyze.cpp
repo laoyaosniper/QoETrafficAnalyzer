@@ -264,9 +264,29 @@ void TraceAnalyze::handleTCPFlow(string ip_src, string ip_dst, int ippayloadlen,
 */
 }
 
+// For Skype voice quality analysis
+void TraceAnalyze::handleUDPFlow(string ip_src, string ip_dst, int ippayloadlen, struct udphdr* udphdr, double ts){
+   int belongsToSomeone=0;
+   for (int i=0;i<udpflows.size();i++){
+       if (udpflows[i].isMyPacket(ip_src,ip_dst, udphdr)==1){
+
+           udpflows[i].addPacket(ip_src,ip_dst, ippayloadlen, udphdr,ts);
+           belongsToSomeone=1;
+       }
+   }
+
+   if (belongsToSomeone==0) {
+       struct UDPFlowStat tfs;
+       tfs.clearData();
+       tfs.addPacket(ip_src,ip_dst, ippayloadlen, udphdr,ts);
+       udpflows.push_back(tfs);
+   }
+}
+
 void TraceAnalyze::feedTracePacket(Context ctx, const struct pcap_pkthdr *header, const u_char *pkt_data) {
  // cout<<"here1\n";
     pktcnt++;
+    //cout << pktcnt << endl;
 
  //   if (pktcnt<200){
  //   cout<<pktcnt<<endl;
@@ -406,7 +426,11 @@ void TraceAnalyze::feedTracePacket(Context ctx, const struct pcap_pkthdr *header
 
 
                        };
-                   };
+                   }
+                   else {
+                       // Skype traffic analysis
+                       handleUDPFlow(ip_src, ip_dst, ip->ip_len - ip->ip_hl*4, udphdr, ts);
+                   }
 
 
                 };break;
@@ -521,7 +545,7 @@ int TraceAnalyze::printMedianUplinkPktSize(string ip) {
                 cnt++;
             }
         }
-        return cnt == 0 ? (int)(sumPktSize / cnt) : 0;
+        return cnt != 0 ? (int)(sumPktSize / cnt) : 0;
 
 }
 
@@ -534,7 +558,7 @@ int TraceAnalyze::printMedianDownlinkPktSize(string ip) {
                 cnt++;
             }
         }
-        return cnt == 0 ? (int)(sumPktSize / cnt) : 0;
+        return cnt != 0 ? (int)(sumPktSize / cnt) : 0;
 
 }
 
@@ -665,5 +689,54 @@ int TraceAnalyze::printMedianServerBIF(string ip) {
             }
         }
         return cnt != 0 ? (int)(sum / cnt) : 0;
+}
+
+double TraceAnalyze::printRTT(double percentage, string ip) {
+/*
+    double sum = 0;
+    int cnt = 0;
+    for (deque<TCPFlowStat>::iterator it = tcpflows.begin(); it != tcpflows.end(); it++) {
+        if (it->svrip == ip || ip == "") {
+            double tmpRTT = pick(it->latencyList, percentage);
+            sum += tmpRTT;
+            cnt++;
+            if (ip == "2607:7700:0:7::c0e6:42be") {
+                cout << percentage << ": " << tmpRTT << " Avg: " << 1000 * sum / cnt << endl;
+            }
+        }
+    }
+    return cnt != 0 ? sum / cnt : 0;
+*/
+    vector<double> list;
+    for (deque<TCPFlowStat>::const_iterator it = tcpflows.begin(); it != tcpflows.end(); it++) {
+        if (it->svrip == ip || ip == "") {
+            const vector<double>& tmpList = it->latencyList;
+            list.reserve(list.size() + tmpList.size());
+            list.insert(list.end(), tmpList.begin(), tmpList.end());
+        }
+    }
+    if (list.size() != 0) {
+        return pick(list, percentage);
+    }
+    else {
+        return 0.0;
+    }
+
+}
+
+double TraceAnalyze::printAvgRTT(string ip) {
+    double sum = 0.0;
+    int cnt = 0;
+    for (deque<TCPFlowStat>::const_iterator it = tcpflows.begin(); it != tcpflows.end(); it++) {
+        if (it->svrip == ip || ip == "") {
+            const vector<double>& tmpList = it->latencyList;
+            for (vector<double>::const_iterator pData = tmpList.begin(); pData != tmpList.end(); pData++) {
+                sum += *pData;
+            }
+            cnt += tmpList.size();
+        }
+    }
+    return cnt != 0 ? sum / cnt : 0.0;
+
 }
 

@@ -130,7 +130,7 @@ void TCPFlowStat::addPacket(string ip_src, string ip_dst, int ippayloadlen, stru
         // window scaling is considered
         int wnd = (int)tcphdr->window << svrWndShift;
         svrRWinList.push_back(wnd);
-        svrPayloadSizeList.push_back(tcpdatalen);
+        if (tcpdatalen > 0) svrPayloadSizeList.push_back(tcpdatalen);
     }
     else {
         clientcnt++;
@@ -142,7 +142,7 @@ void TCPFlowStat::addPacket(string ip_src, string ip_dst, int ippayloadlen, stru
         // window scaling is considered
         int wnd = (int)tcphdr->window << cltWndShift;
         cltRWinList.push_back(wnd);
-        cltPayloadSizeList.push_back(tcpdatalen);
+        if (tcpdatalen > 0) cltPayloadSizeList.push_back(tcpdatalen);
     }
 
     if (tcphdr->doff > 5) {
@@ -150,6 +150,7 @@ void TCPFlowStat::addPacket(string ip_src, string ip_dst, int ippayloadlen, stru
         const char* hdrBound = (const char*)tcphdr + tcphdr->doff*4;
         while (hdr < hdrBound) {
             int type = (int)*hdr;
+            //cout << "Type: " << type << endl;
             if (type == 3) { // window scale
                 hdr += 2;
                 if (pktdir == PKTSENDER_SVR) {
@@ -160,12 +161,13 @@ void TCPFlowStat::addPacket(string ip_src, string ip_dst, int ippayloadlen, stru
                 }
                 break;
             }
-            else if (type == 1) {
+            else if (type == 1 || type == 0) {
                 hdr++;
             }
             else {
                 hdr++;
                 int length = *hdr;
+                //cout << "Length: " << length << endl;
                 hdr += length - 1; //length
             }
         }
@@ -286,16 +288,18 @@ void TCPFlowStat::addPacket(string ip_src, string ip_dst, int ippayloadlen, stru
             };
             break;
         case TCPCONSTATE_ESTABLISHED:
-            if (tcphdr->syn!=1) {
+            if (tcphdr->syn!=1 && tcphdr->rst!=1) {
 
                 if (pktdir==PKTSENDER_CLT){
                     //calc metrics first
                     if (tcphdr->seq > cltseq){
                         printf("client seq is greater than expected, may be pcap's fault.\n");
                     }
-/*
                     if (tcphdr->seq < cltseq){
                     //has re-transmission
+                        int retxseq = tcphdr->seq + tcpdatalen;
+                        updateUnackedSeg(retxseq, ts);
+                    /*
                         int retxb=cltseq-tcphdr->seq;
                         if (tcpdatalen<retxb)
                           retxb=tcpdatalen;
@@ -303,8 +307,8 @@ void TCPFlowStat::addPacket(string ip_src, string ip_dst, int ippayloadlen, stru
                         cltretxbytes+=retxb;
                         cltretxnum+=1;
                   //      printf("client retx %d bytes.\n", retxb);
+                    */
                     };
-*/
                     //if (tcphdr->seq < cltseq) {
                     if (tcphdr->seq < cltseq && tcpdatalen > 0){
                     //has re-transmission
@@ -320,6 +324,7 @@ void TCPFlowStat::addPacket(string ip_src, string ip_dst, int ippayloadlen, stru
                     //the last thing: update seq
                     if (tcphdr->seq+tcpdatalen > cltseq) {
                         cltseq=tcphdr->seq+tcpdatalen;
+                        //updateUnackedSeg(cltseq, ts);
                         unackedSegs.push_back(make_pair(cltseq,ts));
                         if (svrport == 80 || svrport == 8080) {
                             char* pHTTPRequest =  (char*)tcphdr + tcphdr->doff*4;
@@ -399,11 +404,14 @@ void TCPFlowStat::addPacket(string ip_src, string ip_dst, int ippayloadlen, stru
             }
             break;
         case TCPCONSTATE_FIN:
+                break;
                 if (pktdir==PKTSENDER_CLT){
                     //calc metrics first
-                    /*
                     if (tcphdr->seq < cltseq){
                     //has re-transmission
+                        int retxseq = tcphdr->seq + tcpdatalen;
+                        updateUnackedSeg(cltseq, ts);
+                    /*
                         int retxb=cltseq-tcphdr->seq;
                         if (tcpdatalen<retxb)
                           retxb=tcpdatalen;
@@ -411,13 +419,14 @@ void TCPFlowStat::addPacket(string ip_src, string ip_dst, int ippayloadlen, stru
                         cltretxbytes+=retxb;
                         cltretxnum+=1;
                   //      printf("client retx %d bytes.\n", retxb);
-                    };
                     */
+                    };
 
                     //the last thing: update seq
                     if (tcphdr->seq+tcpdatalen > cltseq) {
                         cltseq=tcphdr->seq+tcpdatalen;
-                        unackedSegs.push_back(make_pair(cltseq,ts));
+                        //unackedSegs.push_back(make_pair(cltseq,ts));
+                        updateUnackedSeg(cltseq, ts);
                         int bif = cltseq - svrackseq;
                         cltBIFList.push_back(bif);
                     }
@@ -539,6 +548,28 @@ void TCPFlowStat::calcDownlinkThrpt(double ts) {
     }
 }
 
+/*
+void TCPFlowStat::updateRTT(double ts) {
+    while(!unackedSegs.empty()) {
+        pair<int,double>& pr = unackedSegs.front();
+        if(pr.first == svrackseq) {
+            // found RTT sample
+            rttcnt++;
+            double rtt = ts - pr.second;
+            avgRTT = (avgRTT*(rttcnt-1) + rtt)/rttcnt;
+            latencyList.push_back(rtt);
+            unackedSegs.pop_front();
+            break;
+        }
+        else if (pr.first < svrackseq) {
+            unackedSegs.pop_front();
+        }
+        else {
+            break;
+        }
+    }
+}
+*/
 void TCPFlowStat::updateRTT(double ts) {
     while(!unackedSegs.empty()) {
         pair<int,double>& pr = unackedSegs.front();
@@ -563,6 +594,24 @@ void TCPFlowStat::updateRTT(double ts) {
             break;
         }
     }
+}
+
+void TCPFlowStat::updateUnackedSeg(int seq, double ts) {
+    bool isFound = false;
+    for (deque< pair<int, double> >::iterator it = unackedSegs.begin();
+        it != unackedSegs.end();
+        it++) {
+        if (it->first == seq) {
+            it->second = ts;
+            isFound = true;
+            break;
+        }
+    }
+    /*
+    if (isFound == false) {
+        unackedSegs.push_back(make_pair(seq,ts));
+    }
+    */
 }
 
 void TCPFlowStat::updateHTTPLatency(double ts) {

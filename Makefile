@@ -11,6 +11,8 @@ SOURCES=\
                 DNSops.cpp\
                 rrcstate.cpp\
                 tcpflowstat.cpp\
+                udpflowstat.cpp\
+                util.cpp\
 		TraceAnalyze.cpp\
 		packet_analyzer.cpp
 		

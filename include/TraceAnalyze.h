@@ -16,6 +16,7 @@
 #include "context.h"
 #include "DNSops.h"
 #include "tcpflowstat.h"
+#include "udpflowstat.h"
 #include "rrcstate.h"
 
 class TraceAnalyze {
@@ -29,8 +30,9 @@ public:
 
     int gt5pktcnt;
     RRCStateMachine rrcstate;
-    //deque<struct TCPFlowStat> tcpflows;
     deque<struct TCPFlowStat> tcpflows;
+    // for Skype voice quality analysis
+    deque<struct UDPFlowStat> udpflows;
     vector<struct DNSQueryComb> ansdnsquery;
     vector<string> gt5state;
     TraceAnalyze();
@@ -44,6 +46,8 @@ public:
     void bswapUDP(udphdr* udphdr);
     void bswapDNS(struct DNS_HEADER* dnshdr);
     void handleTCPFlow(string ip_src, string ip_dst, int ippayloadlen, struct tcphdr* tcphdr, double ts);
+    // for Skype voice quality analysis
+    void handleUDPFlow(string ip_src, string ip_dst, int ippayloadlen, struct udphdr* udphdr, double ts);
     void feedTracePacket(Context ctx, const struct pcap_pkthdr *header, const u_char *pkt_data);
 
     //double printAvgIAT(string ip = "") const;
@@ -63,8 +67,11 @@ public:
     int printMedianClientBIF(string ip = "");
     int printMedianServerBIF(string ip = "");
 
+    double printRTT(double percentage, string ip = "");
+    double printAvgRTT(string ip = "");
+
     template<typename T>
-    T calcMedian(vector<T>& list) {
+    static T calcMedian(vector<T>& list) {
         sort(list.begin(), list.end());
         int len = list.size();
         T median = 0;
@@ -78,6 +85,14 @@ public:
         }
         return median;
     }
+
+    template<typename T>
+    T pick(vector<T>& list, double percentage) {
+        sort(list.begin(), list.end());
+        int len = list.size();
+        return list[(int)(len*percentage)];
+    }
+
 };
 
 #endif /* _TRACEANALYZE_H */

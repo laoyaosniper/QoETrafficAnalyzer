@@ -8,6 +8,7 @@
 #include "tcp_ip.h"
 #include "context.h"
 #include "TraceAnalyze.h"
+#include "util.h"
 
 class PacketAnalyzer {
 private:
@@ -36,6 +37,8 @@ public:
 	void outputTraceAnalyze(string datafolder, int firsttime);
 	void run();
 	void dh(u_char *c, const struct pcap_pkthdr *header, const u_char *pkt_data);
+    void printCandleStickData(const map<string, string>& targetIpSet, string metric);
+    void printSkypeInfo();
 
 };
 
